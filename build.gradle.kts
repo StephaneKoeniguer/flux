@@ -24,3 +24,7 @@ javafx {
 application {
     mainClass = "fr.flux.App"
 }
+
+dependencies {
+    implementation("io.github.mkpaz:atlantafx-base:2.0.1")
+}
