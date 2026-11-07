@@ -8,6 +8,11 @@ version = "0.1.0"
 
 repositories {
     mavenCentral()
+    maven("https://dl.frostwire.com/maven") {
+        content {
+            includeGroup("com.frostwire")
+        }
+    }
 }
 
 java {
@@ -25,6 +30,10 @@ application {
     mainClass = "fr.flux.App"
 }
 
+val jlibtorrentVersion = "2.0.15.3"
+
 dependencies {
     implementation("io.github.mkpaz:atlantafx-base:2.0.1")
+    implementation("com.frostwire:jlibtorrent:$jlibtorrentVersion")
+    implementation("com.frostwire:jlibtorrent-macosx-arm64:$jlibtorrentVersion")
 }
