@@ -11,7 +11,10 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.application.Platform;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.function.LongFunction;
 
@@ -25,11 +28,15 @@ public class MainView extends BorderPane {
     private final Label debitDescendant = new Label("↓ 0 o/s");
     private final Label debitMontant = new Label("↑ 0 o/s");
     private final ObservableList<Torrent> torrents = FXCollections.observableArrayList();
+    private final MoteurTorrent moteur;
+    private final Map<String, Torrent> torrentsParId =new HashMap<>();
 
-    public MainView() {
+    public MainView(MoteurTorrent moteur) {
+        this.moteur = moteur;
         setTop(creerBareAjout());
         setCenter(creerListe());
         setBottom(creerBarreEtat());
+        moteur.surMiseAJour(etats -> Platform.runLater(() -> appliquer(etats)));
     }
 
     /**
@@ -71,9 +78,9 @@ public class MainView extends BorderPane {
         TableColumn<Torrent, Double> colonneProgression = new TableColumn<>("Progression");
         colonneProgression.setCellValueFactory(cellule -> cellule.getValue().progressionProperty().asObject());
         colonneProgression.setCellFactory(ProgressBarTableCell.forTableColumn());
-        colonneNom.setPrefWidth(160);
+        colonneProgression.setPrefWidth(160);
 
-        TableColumn<Torrent, Torrent.Statut> colonneStatut = new TableColumn<>("Statut");
+        TableColumn<Torrent, Statut> colonneStatut = new TableColumn<>("Statut");
         colonneStatut.setCellValueFactory(cellule -> cellule.getValue().statutProperty());
 
         TableColumn<Torrent, Number> colonneVitesse = new TableColumn<>("Vitesse");
@@ -99,15 +106,22 @@ public class MainView extends BorderPane {
     }
 
     private void ajouterLien() {
-        /*String lien = champLien.getText().strip();
+        String lien = champLien.getText().strip();
         champLien.pseudoClassStateChanged(Styles.STATE_DANGER, false);
         if (!lien.startsWith("magnet:?")) {
             etat.setText("Ce n'est pas un lien magnet valide");
             champLien.pseudoClassStateChanged(Styles.STATE_DANGER, true);
             return;
         }
-        etat.setText("Lien reçu !");
-        champLien.clear();*/
+
+        try {
+            moteur.ajouterMagnet(lien);
+            etat.setText("Torrent ajouté");
+            champLien.clear();
+        } catch (IllegalArgumentException e) {
+            etat.setText("Lien magnet invalide : " + e.getMessage());
+            champLien.pseudoClassStateChanged(Styles.STATE_DANGER, true);
+        }
     }
 
     // Une cellule qui affiche un nombre après l'avoir passé dans une fonction de formatage.
@@ -119,6 +133,28 @@ public class MainView extends BorderPane {
                 setText(vide || valeur == null ? null : formater.apply(valeur.longValue()));
             }
         };
+    }
+
+    // Exécutée sur le thread JavaFX grâce à Platform.runLater.
+    private void appliquer(List<EtatTorrent> etats) {
+        for (EtatTorrent etat : etats) {
+            Torrent torrent = torrentsParId.get(etat.id());
+            if (torrent == null) {
+                torrent = new Torrent(etat.id());
+                torrentsParId.put(etat.id(), torrent);
+                torrents.add(torrent);
+            }
+            torrent.mettreAJour(etat);
+        }
+
+        long totalDescendant = 0;
+        long totalMontant = 0;
+        for (Torrent torrent : torrents) {
+            totalDescendant += torrent.getVitesse();
+            totalMontant += torrent.getVitesseMontante();
+        }
+        debitDescendant.setText("↓ " + Format.octets(totalDescendant) + "/s");
+        debitMontant.setText("↑ " + Format.octets(totalMontant) + "/s");
     }
 
 }
