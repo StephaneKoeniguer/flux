@@ -74,11 +74,13 @@ public class MainView extends BorderPane {
         TableColumn<Torrent, Number> colonneTaille = new TableColumn<>("Taille");
         colonneTaille.setCellValueFactory(cellule -> cellule.getValue().tailleProperty());
         colonneTaille.setCellFactory(colonne -> celluleFormatee(Format::octets));
+        colonneTaille.getStyleClass().add("nombre");
 
         TableColumn<Torrent, Double> colonneProgression = new TableColumn<>("Progression");
         colonneProgression.setCellValueFactory(cellule -> cellule.getValue().progressionProperty().asObject());
         colonneProgression.setCellFactory(ProgressBarTableCell.forTableColumn());
         colonneProgression.setPrefWidth(160);
+        colonneProgression.getStyleClass().add("nombre");
 
         TableColumn<Torrent, Statut> colonneStatut = new TableColumn<>("Statut");
         colonneStatut.setCellValueFactory(cellule -> cellule.getValue().statutProperty());
@@ -86,8 +88,13 @@ public class MainView extends BorderPane {
         TableColumn<Torrent, Number> colonneVitesse = new TableColumn<>("Vitesse");
         colonneVitesse.setCellValueFactory(cellule -> cellule.getValue().vitesseProperty());
         colonneVitesse.setCellFactory(colonne -> celluleFormatee(v -> v == 0 ? "" : Format.octets(v) + "/s"));
+        colonneVitesse.getStyleClass().add("nombre");
 
-        table.getColumns().setAll(List.of(colonneNom, colonneTaille, colonneProgression, colonneStatut, colonneVitesse));
+        TableColumn<Torrent, Number> colonnePairs = new TableColumn<>("Pairs");
+        colonnePairs.setCellValueFactory(cellule -> cellule.getValue().pairsProperty());
+        colonnePairs.getStyleClass().add("nombre");
+
+        table.getColumns().setAll(List.of(colonneNom, colonneTaille, colonneProgression, colonneStatut, colonneVitesse, colonnePairs));
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         table.setPlaceholder(new Label("Aucun torrent. Colle un lien magnet ci-dessus pour commencer."));
 
