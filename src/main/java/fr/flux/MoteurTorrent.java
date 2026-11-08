@@ -1,11 +1,9 @@
 package fr.flux;
 
-import com.frostwire.jlibtorrent.AlertListener;
-import com.frostwire.jlibtorrent.SessionManager;
-import com.frostwire.jlibtorrent.TorrentStatus;
+import com.frostwire.jlibtorrent.*;
 import com.frostwire.jlibtorrent.alerts.*;
 import com.frostwire.jlibtorrent.swig.torrent_flags_t;
-import com.frostwire.jlibtorrent.TorrentFlags;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -22,6 +20,7 @@ public class MoteurTorrent {
     private final ScheduledExecutorService horloge = Executors.newSingleThreadScheduledExecutor();
     private final File dossierTelechargements;
     private volatile Consumer<List<EtatTorrent>> ecouteur = etats -> {};
+    private volatile Consumer<String> ecouteurSuppression = id -> {};
 
     public MoteurTorrent(File dossierTelechargements) {
         this.dossierTelechargements = dossierTelechargements;
@@ -37,7 +36,8 @@ public class MoteurTorrent {
                         AlertType.ADD_TORRENT.swig(),
                         AlertType.STATE_UPDATE.swig(),
                         AlertType.METADATA_RECEIVED.swig(),
-                        AlertType.TORRENT_FINISHED.swig()
+                        AlertType.TORRENT_FINISHED.swig(),
+                        AlertType.TORRENT_REMOVED.swig()
                 };
             }
 
@@ -47,7 +47,11 @@ public class MoteurTorrent {
             }
         });
 
-        session.start();
+        SessionParams parametres = new SessionParams();
+        // Sans fichiers mappés en mémoire, libtorrent n'intercepte plus SIGBUS,
+        // ce qui entrait en conflit avec la JVM et faisait planter l'application.
+        parametres.setPosixDiskIO();
+        session.start(parametres);
 
         horloge.scheduleAtFixedRate(session::postTorrentUpdates, 1, 1, TimeUnit.SECONDS);
 
@@ -81,6 +85,11 @@ public class MoteurTorrent {
             }
             case METADATA_RECEIVED -> log("Infos reçues : " + ((MetadataReceivedAlert) alert).torrentName());
             case TORRENT_FINISHED -> log("Terminé : " + ((TorrentFinishedAlert) alert).torrentName());
+            case TORRENT_REMOVED -> {
+                String id = ((TorrentRemovedAlert) alert).infoHash().toHex();
+                log("Retiré : " + id);
+                ecouteurSuppression.accept(id);
+            }
             default -> {
                 // les autres alertes ne nous intéressent pas pour l'instant
             }
@@ -89,6 +98,41 @@ public class MoteurTorrent {
 
     public void surMiseAJour(Consumer<List<EtatTorrent>> ecouteur) {
         this.ecouteur = ecouteur;
+    }
+    public void surSuppression(Consumer<String> ecouteur) { this.ecouteurSuppression = ecouteur; }
+
+    public void mettreEnPause(String id) {
+        TorrentHandle handle = trouver(id);
+        if (handle != null) {
+            // Un torrent "auto-managed" serait relancé automatiquement : on le retire de la gestion auto
+            handle.unsetFlags(TorrentFlags.AUTO_MANAGED);
+            handle.pause();
+        }
+    }
+
+    public void reprendre(String id) {
+        TorrentHandle handle = trouver(id);
+        if (handle != null) {
+            handle.setFlags(TorrentFlags.AUTO_MANAGED);
+            handle.resume();
+        }
+    }
+
+    public void supprimer(String id, boolean avecFichiers) {
+        TorrentHandle handle = trouver(id);
+        if (handle == null) {
+            return;
+        }
+        if (avecFichiers) {
+            session.remove(handle, SessionHandle.DELETE_FILES);
+        } else {
+            session.remove(handle);
+        }
+    }
+
+    // Retrouve le torrent jlibtorrent à partir de son hash. Renvoie null s'il n'existe plus.
+    private TorrentHandle trouver(String id) {
+        return session.find(new Sha1Hash(id));
     }
 
     private static EtatTorrent convertir(TorrentStatus status) {

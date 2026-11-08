@@ -5,6 +5,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.Side;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.ProgressBarTableCell;
 import javafx.scene.layout.BorderPane;
@@ -12,6 +13,8 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.application.Platform;
+import javafx.scene.input.KeyCode;
+
 
 import java.util.HashMap;
 import java.util.Map;
@@ -37,6 +40,7 @@ public class MainView extends BorderPane {
         setCenter(creerListe());
         setBottom(creerBarreEtat());
         moteur.surMiseAJour(etats -> Platform.runLater(() -> appliquer(etats)));
+        moteur.surSuppression(id -> Platform.runLater(() -> retirer(id)));
     }
 
     /**
@@ -67,6 +71,9 @@ public class MainView extends BorderPane {
     private TableView<Torrent> creerListe() {
         TableView<Torrent> table = new TableView<>(torrents);
 
+        ContextMenu menu = creerMenu(table);
+        table.setContextMenu(menu);
+
         TableColumn<Torrent, String> colonneNom = new TableColumn<>("Nom");
         colonneNom.setCellValueFactory(cellule -> cellule.getValue().nomProperty());
         colonneNom.setPrefWidth(300);
@@ -80,7 +87,6 @@ public class MainView extends BorderPane {
         colonneProgression.setCellValueFactory(cellule -> cellule.getValue().progressionProperty().asObject());
         colonneProgression.setCellFactory(ProgressBarTableCell.forTableColumn());
         colonneProgression.setPrefWidth(160);
-        colonneProgression.getStyleClass().add("nombre");
 
         TableColumn<Torrent, Statut> colonneStatut = new TableColumn<>("Statut");
         colonneStatut.setCellValueFactory(cellule -> cellule.getValue().statutProperty());
@@ -94,12 +100,49 @@ public class MainView extends BorderPane {
         colonnePairs.setCellValueFactory(cellule -> cellule.getValue().pairsProperty());
         colonnePairs.getStyleClass().add("nombre");
 
-        table.getColumns().setAll(List.of(colonneNom, colonneTaille, colonneProgression, colonneStatut, colonneVitesse, colonnePairs));
+        TableColumn<Torrent, Void> colonneActions = new TableColumn<>("Actions");
+        colonneActions.setSortable(false);
+        colonneActions.setReorderable(false);
+        colonneActions.setMinWidth(60);
+        colonneActions.setMaxWidth(60);
+        colonneActions.setCellFactory(colonne -> new TableCell<>() {
+
+            private final Button bouton = new Button("⋯");
+            {
+                bouton.getStyleClass().addAll(Styles.FLAT);
+                bouton.setTooltip(new Tooltip("Actions"));
+                bouton.setOnAction(event -> {
+                    // On sélectionne d'abord la ligne du bouton : le menu agit sur la sélection
+                    getTableView().getSelectionModel().select(getIndex());
+                    menu.show(bouton, Side.BOTTOM, 0, 0);
+                });
+                setAlignment(Pos.CENTER);
+            }
+
+            @Override
+            protected void updateItem(Void valeur, boolean vide) {
+                super.updateItem(valeur, vide);
+                setGraphic(vide ? null : bouton);
+            }
+        });
+
+
+        table.getColumns().setAll(List.of(colonneNom, colonneTaille, colonneProgression, colonneStatut, colonneVitesse, colonnePairs, colonneActions));
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         table.setPlaceholder(new Label("Aucun torrent. Colle un lien magnet ci-dessus pour commencer."));
 
+        // Touche Supprimer (sur Mac, la touche "delete" s'appelle BACK_SPACE)
+        table.setOnKeyPressed(event -> {
+            Torrent selection = table.getSelectionModel().getSelectedItem();
+            if (selection != null && (event.getCode() == KeyCode.DELETE || event.getCode() == KeyCode.BACK_SPACE)) {
+                confirmerSuppression(selection);
+            }
+        });
+
+
         return table;
     }
+
 
     private HBox creerBarreEtat() {
         Region espace = new Region();
@@ -154,6 +197,19 @@ public class MainView extends BorderPane {
             torrent.mettreAJour(etat);
         }
 
+        recalculerDebits();
+    }
+
+
+    private void retirer(String id) {
+        Torrent torrent = torrentsParId.remove(id);
+        if (torrent != null) {
+            torrents.remove(torrent);
+        }
+        recalculerDebits();
+    }
+
+    private void recalculerDebits() {
         long totalDescendant = 0;
         long totalMontant = 0;
         for (Torrent torrent : torrents) {
@@ -162,6 +218,47 @@ public class MainView extends BorderPane {
         }
         debitDescendant.setText("↓ " + Format.octets(totalDescendant) + "/s");
         debitMontant.setText("↑ " + Format.octets(totalMontant) + "/s");
+    }
+
+
+    private ContextMenu creerMenu(TableView<Torrent> table) {
+        MenuItem pause = new MenuItem("Mettre en pause");
+        MenuItem reprise = new MenuItem("Reprendre");
+        MenuItem supprimer = new MenuItem("Supprimer…");
+
+        pause.setOnAction(e -> moteur.mettreEnPause(table.getSelectionModel().getSelectedItem().getId()));
+        reprise.setOnAction(e -> moteur.reprendre(table.getSelectionModel().getSelectedItem().getId()));
+        supprimer.setOnAction(e -> confirmerSuppression(table.getSelectionModel().getSelectedItem()));
+
+        ContextMenu menu = new ContextMenu(pause, reprise, new SeparatorMenuItem(), supprimer);
+
+        // Juste avant l'affichage, on active seulement les actions qui ont du sens
+        menu.setOnShowing(e -> {
+            Torrent selection = table.getSelectionModel().getSelectedItem();
+            boolean aucune = selection == null;
+            boolean enPause = !aucune && selection.getStatut() == Statut.PAUSE;
+            pause.setDisable(aucune || enPause);
+            reprise.setDisable(aucune || !enPause);
+            supprimer.setDisable(aucune);
+        });
+        return menu;
+    }
+
+    private void confirmerSuppression(Torrent torrent) {
+        CheckBox avecFichiers = new CheckBox("Supprimer aussi les fichiers téléchargés");
+        ButtonType boutonSupprimer = new ButtonType("Supprimer", ButtonBar.ButtonData.OK_DONE);
+
+        Alert boite = new Alert(Alert.AlertType.CONFIRMATION);
+        boite.initOwner(getScene().getWindow());     // la boîte s'affiche au-dessus de notre fenêtre
+        boite.setTitle("Supprimer le torrent");
+        boite.setHeaderText("Retirer « " + torrent.getNom() + " » de la liste ?");
+        boite.getDialogPane().setContent(avecFichiers);
+        boite.getButtonTypes().setAll(ButtonType.CANCEL, boutonSupprimer);
+        boite.getDialogPane().lookupButton(boutonSupprimer).getStyleClass().add(Styles.DANGER);
+
+        boite.showAndWait()
+                .filter(bouton -> bouton == boutonSupprimer)
+                .ifPresent(bouton -> moteur.supprimer(torrent.getId(), avecFichiers.isSelected()));
     }
 
 }
