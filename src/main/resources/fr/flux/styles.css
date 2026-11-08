@@ -13,3 +13,7 @@
 .barre-etat .label {
     -fx-text-fill: -color-fg-muted;
 }
+
+.table-view .nombre {
+    -fx-alignment: CENTER-RIGHT;
+}

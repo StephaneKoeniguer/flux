@@ -7,5 +7,6 @@ public record EtatTorrent(
         double progression,
         Statut statut,
         long vitesseDescendante,
-        long vitesseMontante)
-{}
+        long vitesseMontante,
+        int pairs
+) {}

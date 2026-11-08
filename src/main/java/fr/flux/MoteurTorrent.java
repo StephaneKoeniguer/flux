@@ -99,7 +99,8 @@ public class MoteurTorrent {
                 status.progress(),
                 statutDe(status),
                 status.downloadPayloadRate(),
-                status.uploadPayloadRate());
+                status.uploadPayloadRate(),
+                status.numPeers());
     }
 
     private static Statut statutDe(TorrentStatus status) {

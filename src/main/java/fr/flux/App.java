@@ -26,7 +26,7 @@ public class App extends Application {
         // Permet de charger un thème (atlantafx)
         Application.setUserAgentStylesheet(new NordDark().getUserAgentStylesheet());
 
-        Scene scene = new Scene(new MainView(moteur), 960, 600);
+        Scene scene = new Scene(new MainView(moteur), 1100, 700);
         // Liaison feuille de style externe
         scene.getStylesheets().add(getClass().getResource("styles.css").toExternalForm());
         stage.setTitle("Flux");
