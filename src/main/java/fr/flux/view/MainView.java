@@ -1,11 +1,15 @@
-package fr.flux;
+package fr.flux.view;
 
 import atlantafx.base.theme.Styles;
+import fr.flux.model.Torrent;
+import fr.flux.moteur.EtatTorrent;
+import fr.flux.moteur.MoteurTorrent;
+import fr.flux.moteur.Statut;
+import fr.flux.util.Format;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.geometry.Side;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.ProgressBarTableCell;
 import javafx.scene.layout.BorderPane;
@@ -14,7 +18,8 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.application.Platform;
 import javafx.scene.input.KeyCode;
-
+import org.kordamp.ikonli.feather.Feather;
+import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -70,7 +75,6 @@ public class MainView extends BorderPane {
 
     private TableView<Torrent> creerListe() {
         TableView<Torrent> table = new TableView<>(torrents);
-
         ContextMenu menu = creerMenu(table);
         table.setContextMenu(menu);
 
@@ -100,29 +104,71 @@ public class MainView extends BorderPane {
         colonnePairs.setCellValueFactory(cellule -> cellule.getValue().pairsProperty());
         colonnePairs.getStyleClass().add("nombre");
 
-        TableColumn<Torrent, Void> colonneActions = new TableColumn<>("Actions");
+        TableColumn<Torrent, Statut> colonneActions = new TableColumn<>("Actions");
+        colonneActions.setCellValueFactory(cellule -> cellule.getValue().statutProperty());
         colonneActions.setSortable(false);
         colonneActions.setReorderable(false);
-        colonneActions.setMinWidth(60);
-        colonneActions.setMaxWidth(60);
+        colonneActions.setMinWidth(90);
+        colonneActions.setMaxWidth(90);
         colonneActions.setCellFactory(colonne -> new TableCell<>() {
 
-            private final Button bouton = new Button("⋯");
+            private final FontIcon iconePause = new FontIcon(Feather.PAUSE);
+            private final FontIcon iconeLecture = new FontIcon(Feather.PLAY);
+            private final Tooltip bullePause = new Tooltip("Mettre en pause");
+            private final Tooltip bulleLecture = new Tooltip("Reprendre");
+            private final FontIcon iconeTermine = new FontIcon(Feather.CHECK_CIRCLE);
+            private final Tooltip bulleTermine = new Tooltip("Terminé");
+
+            private final Button boutonBascule = new Button();
+            private final Button boutonSupprimer = new Button(null, new FontIcon(Feather.TRASH_2));
+            private final HBox boutons = new HBox(4, boutonBascule, boutonSupprimer);
+
             {
-                bouton.getStyleClass().addAll(Styles.FLAT);
-                bouton.setTooltip(new Tooltip("Actions"));
-                bouton.setOnAction(event -> {
-                    // On sélectionne d'abord la ligne du bouton : le menu agit sur la sélection
-                    getTableView().getSelectionModel().select(getIndex());
-                    menu.show(bouton, Side.BOTTOM, 0, 0);
+                boutonBascule.getStyleClass().addAll(Styles.BUTTON_ICON, Styles.FLAT);
+                boutonSupprimer.getStyleClass().addAll(Styles.BUTTON_ICON, Styles.FLAT, Styles.DANGER);
+                boutonSupprimer.setTooltip(new Tooltip("Supprimer"));
+                boutons.setAlignment(Pos.CENTER);
+
+                boutonBascule.setOnAction(event -> {
+                    Torrent torrent = getTableRow().getItem();
+                    if (torrent == null) {
+                        return;
+                    }
+                    if (torrent.getStatut() == Statut.PAUSE) {
+                        moteur.reprendre(torrent.getId());
+                    } else {
+                        moteur.mettreEnPause(torrent.getId());
+                    }
                 });
-                setAlignment(Pos.CENTER);
+
+                boutonSupprimer.setOnAction(event -> {
+                    Torrent torrent = getTableRow().getItem();
+                    if (torrent != null) {
+                        confirmerSuppression(torrent);
+                    }
+                });
             }
 
             @Override
-            protected void updateItem(Void valeur, boolean vide) {
-                super.updateItem(valeur, vide);
-                setGraphic(vide ? null : bouton);
+            protected void updateItem(Statut statut, boolean vide) {
+                super.updateItem(statut, vide);
+                if (vide || statut == null) {
+                    setGraphic(null);
+                    return;
+                }
+                boutonBascule.setDisable(false);
+                if (statut == Statut.TERMINE) {
+                    boutonBascule.setGraphic(iconeTermine);
+                    boutonBascule.setTooltip(bulleTermine);
+                    boutonBascule.setDisable(true);
+                } else if (statut == Statut.PAUSE) {
+                    boutonBascule.setGraphic(iconeLecture);
+                    boutonBascule.setTooltip(bulleLecture);
+                } else {
+                    boutonBascule.setGraphic(iconePause);
+                    boutonBascule.setTooltip(bullePause);
+                }
+                setGraphic(boutons);
             }
         });
 

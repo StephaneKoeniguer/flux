@@ -1,4 +1,4 @@
-package fr.flux;
+package fr.flux.moteur;
 
 import com.frostwire.jlibtorrent.*;
 import com.frostwire.jlibtorrent.alerts.*;
