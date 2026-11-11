@@ -1,4 +1,4 @@
-package fr.flux;
+package fr.flux.moteur;
 
 
 public enum Statut {

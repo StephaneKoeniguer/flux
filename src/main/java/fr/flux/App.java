@@ -1,6 +1,8 @@
 package fr.flux;
 
 import atlantafx.base.theme.NordDark;
+import fr.flux.moteur.MoteurTorrent;
+import fr.flux.view.MainView;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.stage.Stage;

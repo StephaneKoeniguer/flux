@@ -36,4 +36,6 @@ dependencies {
     implementation("io.github.mkpaz:atlantafx-base:2.0.1")
     implementation("com.frostwire:jlibtorrent:$jlibtorrentVersion")
     implementation("com.frostwire:jlibtorrent-macosx-arm64:$jlibtorrentVersion")
+    implementation("org.kordamp.ikonli:ikonli-javafx:12.4.0")
+    implementation("org.kordamp.ikonli:ikonli-feather-pack:12.4.0")
 }

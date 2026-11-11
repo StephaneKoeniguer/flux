@@ -1,5 +1,7 @@
-package fr.flux;
+package fr.flux.model;
 
+import fr.flux.moteur.EtatTorrent;
+import fr.flux.moteur.Statut;
 import javafx.beans.property.*;
 
 public class Torrent {
